@@ -27,8 +27,9 @@ ENV DATA_DIR=/app/data
 ENV PORT=8000
 
 # Открываем порт (Railway автоматически установит PORT)
-EXPOSE $PORT
+EXPOSE 8000
 
 # Команда запуска (Railway использует переменную PORT)
-CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}
+# Используем sh -c для правильной обработки переменной окружения
+CMD sh -c "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"
 
