@@ -1,0 +1,349 @@
+{
+  "name": "Telegram AI Agent with API Tools",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": ["message", "callback_query"],
+        "additionalFields": {}
+      },
+      "id": "b8728d10-8269-48c2-8eb6-be0669b782f5",
+      "name": "Telegram Trigger1",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.2,
+      "position": [-1136, -864],
+      "webhookId": "14897027-0eaa-497a-a117-c9d79e181550",
+      "credentials": {
+        "telegramApi": {
+          "id": "I8mNTuvUFq3COzyU",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Ты помощник для работы с OZON Dynamic Pricing API (https://ozonscienceproject-production.up.railway.app).\n\nТы можешь использовать tools для:\n- Получения статистики кэша (количество товаров, файлов, размер)\n- Показа дашборда с метриками (высокий приоритет, критичные остатки, высокий спрос)\n- Поиска товаров с фильтрами\n- Показа топ товаров по спросу\n- Показа товаров без остатка\n\nКогда пользователь задает вопрос или просит данные, используй соответствующий tool. Отвечай на русском языке, будь полезным и дружелюбным. Форматируй ответы читабельно с эмодзи.",
+        "hasOutputParser": true,
+        "tools": {
+          "values": [
+            {
+              "name": "get_cache_stats",
+              "description": "Получить статистику кэша: количество товаров, файлов, размер кэша, режим данных",
+              "type": "function"
+            },
+            {
+              "name": "get_dashboard_metrics",
+              "description": "Получить метрики дашборда: высокий приоритет, критичные остатки, высокий спрос, всего метрик",
+              "type": "function"
+            },
+            {
+              "name": "get_top_products",
+              "description": "Получить топ N товаров по количеству добавлений в избранное. Параметры: limit (количество, по умолчанию 10), category (категория, опционально)",
+              "type": "function"
+            },
+            {
+              "name": "get_out_of_stock",
+              "description": "Получить товары, отсутствующие в наличии более указанного количества дней. Параметр: min_days (минимальное количество дней, по умолчанию 15)",
+              "type": "function"
+            },
+            {
+              "name": "search_products",
+              "description": "Поиск товаров с фильтрами. Параметры: category (категория, опционально), min_favorites (минимальное количество избранного, опционально), page (страница, по умолчанию 1), page_size (размер страницы, по умолчанию 10)",
+              "type": "function"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [-752, -864],
+      "id": "1713c262-3ea6-4ad4-bd59-3d0264d4418c",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-4.1",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [-800, -528],
+      "id": "d431b5f1-1dc0-4fe3-b917-6889424943ae",
+      "name": "OpenRouter Chat Model",
+      "credentials": {
+        "openRouterApi": {
+          "id": "JR90UJFLQP93rEKp",
+          "name": "OpenRouter account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $json.message.from.id }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [-640, -512],
+      "id": "8d30b7cc-1517-480c-a129-46a34dbc23db",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [-176, -512],
+      "id": "dd0ffe5b-be75-41f4-bf59-264bdfeca698",
+      "name": "Structured Output Parser"
+    },
+    {
+      "parameters": {
+        "functionName": "get_cache_stats",
+        "method": "GET",
+        "url": "https://ozonscienceproject-production.up.railway.app/api/cache/stats",
+        "options": {},
+        "respondWith": "allInputData"
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [-550, -200],
+      "id": "tool-cache-stats",
+      "name": "Tool: Cache Stats"
+    },
+    {
+      "parameters": {
+        "functionName": "get_dashboard_metrics",
+        "method": "GET",
+        "url": "=https://ozonscienceproject-production.up.railway.app/api/analytics/pricing-metrics?min_days_out_of_stock={{ $json.min_days_out_of_stock || 15 }}",
+        "options": {},
+        "respondWith": "allInputData"
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [-550, -100],
+      "id": "tool-dashboard",
+      "name": "Tool: Dashboard"
+    },
+    {
+      "parameters": {
+        "functionName": "get_top_products",
+        "method": "GET",
+        "url": "=https://ozonscienceproject-production.up.railway.app/api/analytics/demand/top?limit={{ $json.limit || 10 }}{{ $json.category ? '&category=' + encodeURIComponent($json.category) : '' }}",
+        "options": {},
+        "respondWith": "allInputData"
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [-550, 0],
+      "id": "tool-top-products",
+      "name": "Tool: Top Products"
+    },
+    {
+      "parameters": {
+        "functionName": "get_out_of_stock",
+        "method": "GET",
+        "url": "=https://ozonscienceproject-production.up.railway.app/api/analytics/stock/out-of-stock?min_days={{ $json.min_days || 15 }}",
+        "options": {},
+        "respondWith": "allInputData"
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [-550, 100],
+      "id": "tool-out-of-stock",
+      "name": "Tool: Out of Stock"
+    },
+    {
+      "parameters": {
+        "functionName": "search_products",
+        "method": "GET",
+        "url": "=https://ozonscienceproject-production.up.railway.app/api/products?page={{ $json.page || 1 }}&page_size={{ $json.page_size || 10 }}{{ $json.category ? '&category_level_1=' + encodeURIComponent($json.category) : '' }}{{ $json.min_favorites ? '&min_favorites_count=' + $json.min_favorites : '' }}",
+        "options": {},
+        "respondWith": "allInputData"
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [-550, 200],
+      "id": "tool-search",
+      "name": "Tool: Search Products"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger1').item.json.message.from.id }}",
+        "text": "={{ $json.output }}",
+        "additionalFields": {}
+      },
+      "id": "08040d82-ee7b-4382-9ccb-c38e9df1a14d",
+      "name": "Send Telegram Reply",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [-48, -864],
+      "webhookId": "13389371-2528-461a-ab51-3cd43b9000f3",
+      "credentials": {
+        "telegramApi": {
+          "id": "I8mNTuvUFq3COzyU",
+          "name": "Telegram account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Telegram Trigger1": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Send Telegram Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ],
+      "ai_tool": [
+        [
+          {
+            "node": "Tool: Cache Stats",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tool: Dashboard",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tool: Top Products",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tool: Out of Stock",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tool: Search Products",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool: Cache Stats": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool: Dashboard": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool: Top Products": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool: Out of Stock": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool: Search Products": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2025-12-23T18:00:00.000Z",
+  "versionId": "1"
+}
+

@@ -284,22 +284,28 @@ class AnalyticsService:
         self,
         category: Optional[str] = None,
         brand: Optional[str] = None,
-        min_days_out_of_stock: int = 15
+        min_days_out_of_stock: int = 15,
+        limit: int = 50
     ) -> List[PricingMetric]:
-        """Получает комплексные метрики для динамического ценообразования"""
-        # Используем кэш если доступен
+        """
+        Получает комплексные метрики для динамического ценообразования
+        
+        Lazy evaluation: обрабатывает данные по требованию и возвращает только top N метрик
+        для оптимизации памяти и производительности.
+        """
+        # Используем кэш если доступен (lazy evaluation)
         if self.loader._cache is not None:
             df = self.loader._cache
         else:
             df = self.loader.load_all_data()
         
-        # Фильтры
+        # Фильтры (lazy evaluation - применяются до полной обработки)
         if category:
             df = df[df['category_level_1'] == category]
         if brand:
             df = df[df['brand'] == brand]
         
-        # Группируем по товару
+        # Lazy evaluation: группируем только необходимые колонки
         grouped = df.groupby('id').agg({
             'name': 'first',
             'brand': 'first',
@@ -311,7 +317,13 @@ class AnalyticsService:
         # Фильтруем по минимальному количеству дней отсутствия
         grouped = grouped[grouped['days_out_of_stock'] >= min_days_out_of_stock]
         
-        # Определяем уровень спроса
+        # Lazy evaluation: если данных слишком много, сначала сортируем и ограничиваем
+        # Это экономит память при расчете квантилей
+        if len(grouped) > limit * 2:
+            # Быстрая предварительная сортировка по favorites_count для экономии памяти
+            grouped = grouped.nlargest(limit * 2, 'favorites_count')
+        
+        # Определяем уровень спроса (lazy evaluation - только для отфильтрованных данных)
         if len(grouped) > 0:
             q75 = grouped['favorites_count'].quantile(0.75)
             q25 = grouped['favorites_count'].quantile(0.25)
@@ -328,7 +340,7 @@ class AnalyticsService:
         else:
             grouped['demand_level'] = "low"
         
-        # Рассчитываем приоритетность
+        # Рассчитываем приоритетность (lazy evaluation)
         max_favorites = grouped['favorites_count'].max() if len(grouped) > 0 else 1
         max_days = grouped['days_out_of_stock'].max() if len(grouped) > 0 else 1
         
@@ -337,7 +349,7 @@ class AnalyticsService:
             (grouped['days_out_of_stock'] / max_days * 30)
         ).clip(0, 100)
         
-        # Генерируем рекомендации
+        # Генерируем рекомендации (lazy evaluation)
         def get_recommendation(row):
             if row['demand_level'] == "high" and row['days_out_of_stock'] > 30:
                 return "Критично: высокий спрос, товар отсутствует более месяца. Срочное пополнение."
@@ -350,10 +362,10 @@ class AnalyticsService:
         
         grouped['recommendation'] = grouped.apply(get_recommendation, axis=1)
         
-        # Сортируем по приоритетности
-        grouped = grouped.sort_values('priority_score', ascending=False)
+        # Сортируем по приоритетности и ограничиваем результат (lazy evaluation)
+        grouped = grouped.sort_values('priority_score', ascending=False).head(limit)
         
-        # Конвертируем в модели
+        # Конвертируем в модели (lazy evaluation - только top N)
         result = []
         for _, row in grouped.iterrows():
             result.append(PricingMetric(

@@ -153,7 +153,8 @@ async def get_time_series(
 async def get_pricing_metrics(
     category: Optional[str] = Query(None, description="Фильтр по категории"),
     brand: Optional[str] = Query(None, description="Фильтр по бренду"),
-    min_days_out_of_stock: int = Query(15, ge=0, description="Минимальное количество дней отсутствия в наличии")
+    min_days_out_of_stock: int = Query(15, ge=0, description="Минимальное количество дней отсутствия в наличии"),
+    limit: int = Query(50, ge=1, le=500, description="Максимальное количество метрик для возврата (для оптимизации памяти)")
 ):
     """
     Получает комплексные метрики для динамического ценообразования
@@ -163,13 +164,16 @@ async def get_pricing_metrics(
     - Количество дней отсутствия в наличии
     - Приоритетность товара для пополнения (0-100)
     - Рекомендации по действиям
+    
+    Lazy evaluation: возвращает только top N метрик по приоритетности для оптимизации памяти.
     """
     try:
         service = get_analytics_service()
         metrics = service.get_pricing_metrics(
             category=category,
             brand=brand,
-            min_days_out_of_stock=min_days_out_of_stock
+            min_days_out_of_stock=min_days_out_of_stock,
+            limit=limit
         )
         return PricingMetricsResponse(
             metrics=metrics,

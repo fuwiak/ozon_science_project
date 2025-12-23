@@ -1,0 +1,218 @@
+{
+  "name": "Telegram AI Agent with API Tools",
+  "active": true,
+  "nodes": [
+    {
+      "parameters": {
+        "updates": ["message"],
+        "additionalFields": {}
+      },
+      "id": "telegram-trigger-ai",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.2,
+      "position": [250, 300],
+      "webhookId": "telegram-webhook-ai"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Ты помощник для работы с OZON Dynamic Pricing API (https://ozonscienceproject-production.up.railway.app).\n\nТы можешь:\n- Получать статистику кэша (/stats, /cache)\n- Показывать дашборд с метриками (/dashboard, /metrics)\n- Искать товары (/products)\n- Показывать топ товаров (/top)\n- Показывать товары без остатка (/outofstock)\n- Управлять кэшем (/cache_clear, /cache_reload)\n\nИспользуй доступные tools для вызова API когда пользователь просит данные. Отвечай на русском языке, будь полезным и дружелюбным. Если пользователь задает вопрос без конкретной команды, попробуй понять что он хочет и используй соответствующий tool.",
+        "hasOutputParser": true,
+        "tools": {
+          "values": [
+            {
+              "name": "get_cache_stats",
+              "description": "Получить статистику кэша: количество товаров, файлов, размер кэша",
+              "type": "function"
+            },
+            {
+              "name": "get_dashboard_metrics",
+              "description": "Получить метрики дашборда: высокий приоритет, критичные остатки, высокий спрос",
+              "type": "function"
+            },
+            {
+              "name": "get_top_products",
+              "description": "Получить топ N товаров по количеству добавлений в избранное",
+              "type": "function"
+            },
+            {
+              "name": "get_out_of_stock",
+              "description": "Получить товары, отсутствующие в наличии более указанного количества дней",
+              "type": "function"
+            },
+            {
+              "name": "search_products",
+              "description": "Поиск товаров с фильтрами по категории, минимальному количеству избранного",
+              "type": "function"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ai-agent",
+      "name": "AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-4.1",
+        "options": {}
+      },
+      "id": "openrouter-model",
+      "name": "OpenRouter Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [450, 500],
+      "credentials": {
+        "openRouterApi": {
+          "id": "JR90UJFLQP93rEKp",
+          "name": "OpenRouter account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $json.message.from.id }}"
+      },
+      "id": "memory",
+      "name": "Simple Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [450, 700]
+    },
+    {
+      "parameters": {},
+      "id": "output-parser",
+      "name": "Structured Output Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [450, 900]
+    },
+    {
+      "parameters": {
+        "functionName": "get_cache_stats",
+        "method": "GET",
+        "url": "https://ozonscienceproject-production.up.railway.app/api/cache/stats",
+        "options": {},
+        "respondWith": "allInputData"
+      },
+      "id": "tool-cache-stats",
+      "name": "Tool: Cache Stats",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [650, 200]
+    },
+    {
+      "parameters": {
+        "functionName": "get_dashboard_metrics",
+        "method": "GET",
+        "url": "=https://ozonscienceproject-production.up.railway.app/api/analytics/pricing-metrics?min_days_out_of_stock={{ $json.min_days_out_of_stock || 15 }}",
+        "options": {},
+        "respondWith": "allInputData"
+      },
+      "id": "tool-dashboard",
+      "name": "Tool: Dashboard",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "functionName": "get_top_products",
+        "method": "GET",
+        "url": "=https://ozonscienceproject-production.up.railway.app/api/analytics/demand/top?limit={{ $json.limit || 10 }}{{ $json.category ? '&category=' + encodeURIComponent($json.category) : '' }}",
+        "options": {},
+        "respondWith": "allInputData"
+      },
+      "id": "tool-top-products",
+      "name": "Tool: Top Products",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [650, 400]
+    },
+    {
+      "parameters": {
+        "functionName": "get_out_of_stock",
+        "method": "GET",
+        "url": "=https://ozonscienceproject-production.up.railway.app/api/analytics/stock/out-of-stock?min_days={{ $json.min_days || 15 }}",
+        "options": {},
+        "respondWith": "allInputData"
+      },
+      "id": "tool-out-of-stock",
+      "name": "Tool: Out of Stock",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [650, 500]
+    },
+    {
+      "parameters": {
+        "functionName": "search_products",
+        "method": "GET",
+        "url": "=https://ozonscienceproject-production.up.railway.app/api/products?page={{ $json.page || 1 }}&page_size={{ $json.page_size || 10 }}{{ $json.category ? '&category_level_1=' + encodeURIComponent($json.category) : '' }}{{ $json.min_favorites ? '&min_favorites_count=' + $json.min_favorites : '' }}",
+        "options": {},
+        "respondWith": "allInputData"
+      },
+      "id": "tool-search",
+      "name": "Tool: Search Products",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [650, 600]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "text": "={{ $json.output }}",
+        "additionalFields": {}
+      },
+      "id": "send-reply",
+      "name": "Send Telegram Reply",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [850, 300]
+    }
+  ],
+  "connections": {
+    "Telegram Trigger": {
+      "main": [[{ "node": "AI Agent", "type": "main", "index": 0 }]]
+    },
+    "AI Agent": {
+      "main": [[{ "node": "Send Telegram Reply", "type": "main", "index": 0 }]],
+      "ai_tool": [
+        [{ "node": "Tool: Cache Stats", "type": "ai_tool", "index": 0 }],
+        [{ "node": "Tool: Dashboard", "type": "ai_tool", "index": 0 }],
+        [{ "node": "Tool: Top Products", "type": "ai_tool", "index": 0 }],
+        [{ "node": "Tool: Out of Stock", "type": "ai_tool", "index": 0 }],
+        [{ "node": "Tool: Search Products", "type": "ai_tool", "index": 0 }]
+      ]
+    },
+    "OpenRouter Chat Model": {
+      "ai_languageModel": [[{ "node": "AI Agent", "type": "ai_languageModel", "index": 0 }]]
+    },
+    "Simple Memory": {
+      "ai_memory": [[{ "node": "AI Agent", "type": "ai_memory", "index": 0 }]]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [[{ "node": "AI Agent", "type": "ai_outputParser", "index": 0 }]]
+    },
+    "Tool: Cache Stats": {
+      "main": [[{ "node": "AI Agent", "type": "ai_tool", "index": 0 }]]
+    },
+    "Tool: Dashboard": {
+      "main": [[{ "node": "AI Agent", "type": "ai_tool", "index": 0 }]]
+    },
+    "Tool: Top Products": {
+      "main": [[{ "node": "AI Agent", "type": "ai_tool", "index": 0 }]]
+    },
+    "Tool: Out of Stock": {
+      "main": [[{ "node": "AI Agent", "type": "ai_tool", "index": 0 }]]
+    },
+    "Tool: Search Products": {
+      "main": [[{ "node": "AI Agent", "type": "ai_tool", "index": 0 }]]
+    }
+  }
+}
+

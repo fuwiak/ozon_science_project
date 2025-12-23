@@ -1,0 +1,144 @@
+{
+  "name": "OZON Dynamic Pricing API - Example Workflows",
+  "description": "Przykładowe workflows dla n8n do pracy z OZON Dynamic Pricing API",
+  "workflows": [
+    {
+      "name": "Get Top Products",
+      "nodes": [
+        {
+          "type": "n8n-nodes-base.httpRequest",
+          "parameters": {
+            "method": "GET",
+            "url": "https://ozonscienceproject-production.up.railway.app/api/analytics/demand/top",
+            "options": {
+              "queryParameters": {
+                "parameters": [
+                  {
+                    "name": "limit",
+                    "value": "10"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Get Out of Stock Products",
+      "nodes": [
+        {
+          "type": "n8n-nodes-base.httpRequest",
+          "parameters": {
+            "method": "GET",
+            "url": "https://ozonscienceproject-production.up.railway.app/api/analytics/stock/out-of-stock",
+            "options": {
+              "queryParameters": {
+                "parameters": [
+                  {
+                    "name": "min_days",
+                    "value": "30"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Get Pricing Metrics",
+      "nodes": [
+        {
+          "type": "n8n-nodes-base.httpRequest",
+          "parameters": {
+            "method": "GET",
+            "url": "https://ozonscienceproject-production.up.railway.app/api/analytics/pricing-metrics",
+            "options": {
+              "queryParameters": {
+                "parameters": [
+                  {
+                    "name": "min_days_out_of_stock",
+                    "value": "15"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Search Products",
+      "nodes": [
+        {
+          "type": "n8n-nodes-base.httpRequest",
+          "parameters": {
+            "method": "GET",
+            "url": "https://ozonscienceproject-production.up.railway.app/api/products",
+            "options": {
+              "queryParameters": {
+                "parameters": [
+                  {
+                    "name": "category_level_1",
+                    "value": "Красота и здоровье"
+                  },
+                  {
+                    "name": "min_favorites_count",
+                    "value": "1000"
+                  },
+                  {
+                    "name": "page",
+                    "value": "1"
+                  },
+                  {
+                    "name": "page_size",
+                    "value": "20"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Telegram Command Handler",
+      "nodes": [
+        {
+          "type": "n8n-nodes-base.telegramTrigger",
+          "parameters": {}
+        },
+        {
+          "type": "n8n-nodes-base.httpRequest",
+          "parameters": {
+            "method": "POST",
+            "url": "https://ozonscienceproject-production.up.railway.app/api/telegram/command",
+            "sendBody": true,
+            "specifyBody": "json",
+            "jsonBody": "{\n  \"command\": \"{{$json.message.text}}\",\n  \"chat_id\": \"{{$json.chat.id}}\",\n  \"user_id\": \"{{$json.from.id}}\",\n  \"message\": \"{{$json.message.text}}\"\n}",
+            "options": {
+              "headers": {
+                "parameters": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "type": "n8n-nodes-base.telegram",
+          "parameters": {
+            "operation": "sendMessage",
+            "chatId": "={{$json.chat_id}}",
+            "text": "={{$json.message}}"
+          }
+        }
+      ]
+    }
+  ]
+}
+

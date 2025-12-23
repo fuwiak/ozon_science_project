@@ -1,0 +1,175 @@
+{
+      "name": "Telegram API - Dynamic Pricing",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message",
+          "callback_query"
+        ],
+        "additionalFields": {}
+      },
+      "id": "telegram-trigger",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        250,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Подготовка URL и метода для HTTP Request\n// Lazy evaluation: команды загружаются только при необходимости\nconst text = ($input.item.json.message?.text || '').trim();\nconst chatId = $input.item.json.message?.chat?.id;\nconst baseUrl = 'https://ozonscienceproject-production.up.railway.app';\n\n// Маппинг команд на endpoint'ы (lazy loading)\nconst commands = {\n  '/stats': { url: '/api/cache/stats', type: 'stats' },\n  '/cache': { url: '/api/cache/stats', type: 'stats' },\n  '/dashboard': { url: '/api/analytics/pricing-metrics?min_days_out_of_stock=15&limit=5', type: 'dashboard' },\n  '/metrics': { url: '/api/analytics/pricing-metrics?min_days_out_of_stock=15&limit=5', type: 'dashboard' },\n  '/products': { url: '/api/products?page=1&page_size=3', type: 'products' },\n  '/top': { url: '/api/analytics/demand/top?limit=5', type: 'top' },\n  '/outofstock': { url: '/api/analytics/stock/out-of-stock?min_days=30&limit=5', type: 'outofstock' },\n  '/cache_clear': { url: '/api/cache/clear', type: 'cache_action', method: 'POST' },\n  '/cache_reload': { url: '/api/cache/reload', type: 'cache_action', method: 'POST' },\n  '/help': { url: null, type: 'help' }\n};\n\n// Проверка: является ли текст командой\nif (!text.startsWith('/')) {\n  return [{ json: { chatId, message: '❌ Отправьте команду, начинающуюся с /', skipApi: true } }];\n}\n\n// Lazy evaluation: извлечение команды только при необходимости\nconst command = text.split(' ')[0].toLowerCase();\nconst cmdData = commands[command];\n\nif (!cmdData) {\n  return [{ json: { chatId, message: '❌ Неизвестная команда. Используйте /help', skipApi: true } }];\n}\n\n// Обработка команды help (не требует API)\nif (cmdData.type === 'help') {\n  return [{ json: { \n    chatId, \n    message: `🤖 <b>Dynamic Pricing 1299$</b>\\n\\n` +\n      `📊 <b>Дашборд</b>\\n` +\n      `/dashboard - Основные метрики\\n` +\n      `/metrics - Метрики ценообразования\\n\\n` +\n      `📦 <b>Товары</b>\\n` +\n      `/products - Список товаров\\n` +\n      `/top - Топ товаров\\n\\n` +\n      `📈 <b>Аналитика</b>\\n` +\n      `/outofstock - Товары без остатка\\n\\n` +\n      `🗄️ <b>Кэш</b>\\n` +\n      `/cache - Статистика кэша\\n` +\n      `/cache_clear - Очистить кэш\\n` +\n      `/cache_reload - Перезагрузить кэш\\n\\n` +\n      `❓ <b>Помощь</b>\\n` +\n      `/help - Этот список\\n\\n` +\n      `⏳ <i>Примечание: некоторые команды могут занять время для обработки больших объемов данных</i>`,\n    skipApi: true\n  } }];\n}\n\n// Возврат данных для HTTP Request (lazy evaluation)\nreturn [{ json: { \n  chatId, \n  url: baseUrl + cmdData.url, \n  method: cmdData.method || 'GET',\n  commandType: cmdData.type,\n  skipApi: false\n} }];"
+      },
+      "id": "prepare-request",
+      "name": "Prepare Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        450,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.skipApi }}",
+              "value2": false
+            }
+          ]
+        }
+      },
+      "id": "check-skip",
+      "name": "Skip API?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        650,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "={{ $json.method }}",
+        "url": "={{ $json.url }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": false,
+              "neverError": false,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "http-request",
+      "name": "Call API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        850,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Форматирование ответа от API\n// Lazy evaluation: данные обрабатываются только при необходимости\n// В n8n, когда HTTP Request возвращает массив, он может быть в $input.all() или $input.item.json\nconst input = $input.item.json;\nconst allItems = $input.all();\nconst prepareData = $('Prepare Request').item.json;\nconst commandType = prepareData.commandType;\nconst chatId = prepareData.chatId;\n\n// Если skipApi, вернуть готовое сообщение (lazy evaluation)\nif (prepareData.skipApi || input.message) {\n  return [{ json: { chatId, message: input.message || input.text } }];\n}\n\n// Lazy evaluation: форматирование ответа только при наличии данных\nconst apiResponse = input;\nlet message = '';\n\nswitch(commandType) {\n  case 'stats':\n    // Lazy evaluation: проверка наличия данных перед форматированием\n    const totalProducts = apiResponse.total_products || 0;\n    const filesLoaded = apiResponse.files_loaded || 0;\n    const cacheSize = apiResponse.cache_size_mb || 0;\n    const isMockData = apiResponse.using_mock_data || false;\n    \n    message = `📊 <b>Статистика кэша</b>\\n\\n` +\n      `Товаров: ${totalProducts.toLocaleString()}\\n` +\n      `Файлов: ${filesLoaded}\\n` +\n      `Размер: ${cacheSize.toFixed(2)} МБ\\n` +\n      `Режим: ${isMockData ? 'Мок данные' : 'Реальные данные'}`;\n    break;\n    \n  case 'dashboard':\n    // Lazy evaluation: загрузка и фильтрация метрик по требованию\n    const metrics = (apiResponse.metrics || []).slice(0, 5);\n    const highPriority = metrics.filter(m => m.priority_score >= 70).length;\n    const criticalStock = metrics.filter(m => m.days_out_of_stock > 30).length;\n    const highDemand = metrics.filter(m => m.demand_level === 'high').length;\n    const totalMetrics = apiResponse.total_metrics || apiResponse.metrics?.length || 0;\n    \n    message = `📊 <b>Дашборд</b>\\n\\n` +\n      `🔴 Высокий приоритет: ${highPriority}\\n` +\n      `📦 Критичные остатки: ${criticalStock}\\n` +\n      `📈 Высокий спрос: ${highDemand}\\n` +\n      `📊 Всего метрик: ${totalMetrics}\\n` +\n      `Показано: ${metrics.length} из ${totalMetrics}`;\n    \n    // Предупреждение о возможной задержке\n    if (totalMetrics > 100) {\n      message += `\\n\\n⏳ <i>Обработка больших объемов данных может занять время</i>`;\n    }\n    break;\n    \n  case 'products':\n    // Lazy evaluation: загрузка только первых 3 товаров\n    const products = (apiResponse.products || []).slice(0, 3);\n    const totalProductsCount = apiResponse.total || 0;\n    \n    message = `📦 <b>Товары</b> (${totalProductsCount} всего)\\n\\n`;\n    \n    if (products.length === 0) {\n      message += `⏳ Данные загружаются...\\n` +\n        `Попробуйте еще раз через несколько секунд.`;\n    } else {\n      products.forEach((p, i) => {\n        message += `${i + 1}. ${p.name || p.product_name}\\n` +\n          `   ❤️ Избранное: ${(p.favorites_count || 0).toLocaleString()}\\n`;\n      });\n      if (totalProductsCount > 3) {\n        message += `\\n... и еще ${totalProductsCount - 3} товаров`;\n      }\n    }\n    break;\n    \n  case 'top':\n    // API возвращает массив - в n8n может быть в $input.all() или $input.item.json\n    // Lazy evaluation: загрузка данных по требованию\n    let topProducts = [];\n    \n    // Проверка различных форматов ответа (lazy loading)\n    if (allItems && allItems.length > 0 && allItems[0].json) {\n      // Каждый элемент массива является отдельным item'ом\n      topProducts = allItems.map(item => item.json).filter(p => p.product_name || p.name);\n    } else if (Array.isArray(apiResponse)) {\n      // Массив напрямую в apiResponse\n      topProducts = apiResponse;\n    } else if (apiResponse && typeof apiResponse === 'object') {\n      // Может быть обернуто в объект\n      if (Array.isArray(apiResponse.body)) {\n        topProducts = apiResponse.body;\n      } else if (Array.isArray(apiResponse.data)) {\n        topProducts = apiResponse.data;\n      } else if (Array.isArray(apiResponse.products)) {\n        topProducts = apiResponse.products;\n      } else if (apiResponse.json && Array.isArray(apiResponse.json)) {\n        topProducts = apiResponse.json;\n      }\n    }\n    \n    message = `🏆 <b>Топ товаров</b>\\n\\n`;\n    if (topProducts.length === 0) {\n      message += `⏳ Данные загружаются...\\n` +\n        `Попробуйте еще раз через несколько секунд.`;\n    } else {\n      // Сортировка по rank если доступен (lazy evaluation)\n      topProducts.sort((a, b) => (a.rank || 0) - (b.rank || 0));\n      topProducts.slice(0, 5).forEach((p) => {\n        const name = p.product_name || p.name || 'Товар';\n        const favorites = p.favorites_count || p.favorites || 0;\n        const rank = p.rank || '?';\n        message += `${rank}. ${name}\\n` +\n          `   ❤️ Избранное: ${favorites.toLocaleString()}\\n\\n`;\n      });\n      if (topProducts.length > 5) {\n        message += `... и еще ${topProducts.length - 5} товаров`;\n      }\n    }\n    break;\n    \n  case 'outofstock':\n    // Lazy evaluation: загрузка только первых 5 товаров без остатка\n    const outOfStock = Array.isArray(apiResponse) ? apiResponse.slice(0, 5) : [];\n    const totalOutOfStock = Array.isArray(apiResponse) ? apiResponse.length : 0;\n    \n    message = `⚠️ <b>Товары без остатка</b> (${totalOutOfStock} всего)\\n\\n`;\n    \n    if (outOfStock.length === 0) {\n      message += `⏳ Данные загружаются...\\n` +\n        `Попробуйте еще раз через несколько секунд.`;\n    } else {\n      outOfStock.forEach((p, i) => {\n        message += `${i + 1}. ${p.product_name || p.name}\\n` +\n          `   📦 Дней нет: ${p.days_out_of_stock || 0}\\n`;\n      });\n      if (totalOutOfStock > 5) {\n        message += `\\n... и еще ${totalOutOfStock - 5} товаров`;\n      }\n    }\n    break;\n    \n  case 'cache_action':\n    message = apiResponse.message || `✅ Команда выполнена`;\n    break;\n    \n  default:\n    message = `❌ Неизвестный тип команды\\n\\n` +\n      `Полученные данные:\\n` +\n      JSON.stringify(apiResponse, null, 2).substring(0, 500);\n}\n\nreturn [{ json: { chatId, message } }];"
+      },
+      "id": "format-response",
+      "name": "Format Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1050,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chatId }}",
+        "text": "={{ $json.message }}",
+        "additionalFields": {
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "send-telegram",
+      "name": "Send Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [
+        1250,
+        200
+      ]
+    }
+  ],
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Prepare Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Request": {
+      "main": [
+        [
+          {
+            "node": "Skip API?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip API?": {
+      "main": [
+        [
+          {
+            "node": "Call API",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call API": {
+      "main": [
+        [
+          {
+            "node": "Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Response": {
+      "main": [
+        [
+          {
+            "node": "Send Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

@@ -1,0 +1,95 @@
+{
+  "name": "Telegram Scheduled Notifications",
+  "active": true,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 1
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://ozonscienceproject-production.up.railway.app/api/analytics/stock/out-of-stock?min_days=30",
+        "options": {}
+      },
+      "id": "get-critical",
+      "name": "Get Critical Products",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ Array.isArray($json) ? $json.length : 0 }}",
+              "operation": "larger",
+              "value2": 0
+            }
+          ]
+        }
+      },
+      "id": "has-critical",
+      "name": "Has Critical?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Formatuj wiadomość o krytycznych produktach\nconst products = Array.isArray($input.item.json) ? $input.item.json : [$input.item.json];\nconst critical = products.filter(p => (p.days_out_of_stock || 0) > 30 && (p.priority_score || 0) >= 80);\n\nif (critical.length === 0) {\n  return { json: { skip: true } };\n}\n\nlet message = `⚠️ <b>КРИТИЧЕСКИЕ ТОВАРЫ БЕЗ ОСТАТКА</b>\\n\\n`;\nmessage += `Найдено: ${critical.length} товаров\\n\\n`;\n\ncritical.slice(0, 10).forEach((p, i) => {\n  message += `${i + 1}. ${p.product_name || p.name || 'Товар'}\\n`;\n  message += `   📦 Дней нет: ${p.days_out_of_stock || 0}\\n`;\n  message += `   ⭐ Приоритет: ${p.priority_score || 0}\\n`;\n  message += `   ❤️ Избранное: ${(p.favorites_count || 0).toLocaleString()}\\n\\n`;\n});\n\nif (critical.length > 10) {\n  message += `... и еще ${critical.length - 10} товаров`;\n}\n\nreturn { json: { message, count: critical.length } };"
+      },
+      "id": "format-message",
+      "name": "Format Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 200]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $env.TELEGRAM_CHAT_ID }}",
+        "text": "={{ $json.message }}",
+        "additionalFields": {
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "send-notification",
+      "name": "Send Notification",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [1050, 200]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [[{ "node": "Get Critical Products", "type": "main", "index": 0 }]]
+    },
+    "Get Critical Products": {
+      "main": [[{ "node": "Has Critical?", "type": "main", "index": 0 }]]
+    },
+    "Has Critical?": {
+      "main": [
+        [{ "node": "Format Message", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "Format Message": {
+      "main": [[{ "node": "Send Notification", "type": "main", "index": 0 }]]
+    }
+  }
+}
+

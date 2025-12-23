@@ -1,0 +1,182 @@
+{
+  "name": "Telegram API Integration Workflows",
+  "description": "Workflows n8n do integracji Telegram z OZON Dynamic Pricing API",
+  "version": "1.0.0",
+  "baseUrl": "https://ozonscienceproject-production.up.railway.app",
+  "workflows": [
+    {
+      "name": "Telegram API Commands - Direct",
+      "active": true,
+      "nodes": [
+        {
+          "parameters": {
+            "updates": ["message"],
+            "additionalFields": {}
+          },
+          "id": "telegram-trigger-1",
+          "name": "Telegram Trigger",
+          "type": "n8n-nodes-base.telegramTrigger",
+          "typeVersion": 1.2,
+          "position": [250, 300],
+          "webhookId": "telegram-webhook-commands"
+        },
+        {
+          "parameters": {
+            "jsCode": "// Rozpoznaj komendę i przygotuj request\nconst text = ($input.item.json.message?.text || '').toLowerCase().trim();\nconst chatId = $input.item.json.message?.chat?.id;\nconst userId = $input.item.json.message?.from?.id;\n\n// Mapowanie komend na endpointy\nconst commandMap = {\n  '/stats': {\n    method: 'GET',\n    url: '/api/cache/stats',\n    command: 'stats'\n  },\n  '/dashboard': {\n    method: 'GET',\n    url: '/api/analytics/pricing-metrics?min_days_out_of_stock=15',\n    command: 'dashboard'\n  },\n  '/products': {\n    method: 'GET',\n    url: '/api/products?page=1&page_size=5',\n    command: 'products'\n  },\n  '/top': {\n    method: 'GET',\n    url: '/api/analytics/demand/top?limit=10',\n    command: 'top'\n  },\n  '/outofstock': {\n    method: 'GET',\n    url: '/api/analytics/stock/out-of-stock?min_days=30',\n    command: 'outofstock'\n  },\n  '/metrics': {\n    method: 'GET',\n    url: '/api/analytics/pricing-metrics?min_days_out_of_stock=15',\n    command: 'metrics'\n  },\n  '/cache': {\n    method: 'GET',\n    url: '/api/cache/stats',\n    command: 'cache'\n  },\n  '/cache_clear': {\n    method: 'POST',\n    url: '/api/cache/clear',\n    command: 'cache_clear'\n  },\n  '/cache_reload': {\n    method: 'POST',\n    url: '/api/cache/reload',\n    command: 'cache_reload'\n  },\n  '/help': {\n    method: 'HELP',\n    url: null,\n    command: 'help'\n  }\n};\n\n// Sprawdź czy to komenda\nif (!text.startsWith('/')) {\n  return { json: { isCommand: false, text, chatId, userId } };\n}\n\n// Pobierz komendę (pierwsze słowo)\nconst command = text.split(' ')[0];\nconst cmdData = commandMap[command];\n\nif (!cmdData) {\n  return { \n    json: { \n      isCommand: true, \n      isHelp: false,\n      isUnknown: true,\n      command: command,\n      chatId,\n      userId,\n      message: '❌ Неизвестная команда. Используйте /help для списка команд.'\n    } \n  };\n}\n\nif (cmdData.command === 'help') {\n  const helpText = `🤖 <b>Dynamic Pricing 1299$</b>\\n\\n` +\n    `Доступные команды:\\n\\n` +\n    `📊 <b>Дашборд</b>\\n` +\n    `/dashboard - Основные метрики\\n\\n` +\n    `📦 <b>Товары</b>\\n` +\n    `/products - Список товаров\\n` +\n    `/top - Топ товаров\\n\\n` +\n    `📈 <b>Аналитика</b>\\n` +\n    `/outofstock - Товары без остатка\\n` +\n    `/metrics - Метрики ценообразования\\n\\n` +\n    `🗄️ <b>Кэш</b>\\n` +\n    `/cache - Статистика кэша\\n` +\n    `/cache_clear - Очистить кэш\\n` +\n    `/cache_reload - Перезагрузить кэш\\n\\n` +\n    `❓ <b>Помощь</b>\\n` +\n    `/help - Этот список`;\n  \n  return { \n    json: { \n      isCommand: true, \n      isHelp: true,\n      isUnknown: false,\n      command: 'help',\n      chatId,\n      userId,\n      message: helpText\n    } \n  };\n}\n\nreturn {\n  json: {\n    isCommand: true,\n    isHelp: false,\n    isUnknown: false,\n    command: cmdData.command,\n    method: cmdData.method,\n    url: cmdData.url,\n    chatId,\n    userId\n  }\n};"
+          },
+          "id": "parse-command-1",
+          "name": "Parse Command",
+          "type": "n8n-nodes-base.code",
+          "typeVersion": 2,
+          "position": [450, 300]
+        },
+        {
+          "parameters": {
+            "conditions": {
+              "boolean": [
+                {
+                  "value1": "={{ $json.isCommand }}",
+                  "value2": true
+                }
+              ]
+            }
+          },
+          "id": "check-is-command",
+          "name": "Is Command?",
+          "type": "n8n-nodes-base.if",
+          "typeVersion": 1,
+          "position": [650, 300]
+        },
+        {
+          "parameters": {
+            "conditions": {
+              "boolean": [
+                {
+                  "value1": "={{ $json.isHelp }}",
+                  "value2": true
+                }
+              ]
+            }
+          },
+          "id": "check-is-help",
+          "name": "Is Help?",
+          "type": "n8n-nodes-base.if",
+          "typeVersion": 1,
+          "position": [850, 300]
+        },
+        {
+          "parameters": {
+            "conditions": {
+              "boolean": [
+                {
+                  "value1": "={{ $json.isUnknown }}",
+                  "value2": true
+                }
+              ]
+            }
+          },
+          "id": "check-is-unknown",
+          "name": "Is Unknown?",
+          "type": "n8n-nodes-base.if",
+          "typeVersion": 1,
+          "position": [850, 500]
+        },
+        {
+          "parameters": {
+            "method": "={{ $json.method }}",
+            "url": "=https://ozonscienceproject-production.up.railway.app{{ $json.url }}",
+            "options": {}
+          },
+          "id": "http-request-1",
+          "name": "Call API",
+          "type": "n8n-nodes-base.httpRequest",
+          "typeVersion": 4.1,
+          "position": [1050, 200]
+        },
+        {
+          "parameters": {
+            "jsCode": "// Formatuj odpowiedź z API\nconst apiResponse = $input.item.json;\nconst command = $('Parse Command').item.json.command;\n\nlet message = '';\n\nswitch(command) {\n  case 'stats':\n  case 'cache':\n    message = `📊 <b>Статистика кэша</b>\\n\\n` +\n      `Товаров: ${apiResponse.total_products?.toLocaleString() || 0}\\n` +\n      `Файлов: ${apiResponse.files_loaded || 0}\\n` +\n      `Размер: ${apiResponse.cache_size_mb?.toFixed(2) || 0} МБ\\n` +\n      `Режим: ${apiResponse.using_mock_data ? 'Мок данные' : 'Реальные данные'}`;\n    break;\n    \n  case 'dashboard':\n  case 'metrics':\n    const metrics = apiResponse.metrics || [];\n    const highPriority = metrics.filter(m => m.priority_score >= 70).length;\n    const criticalStock = metrics.filter(m => m.days_out_of_stock > 30).length;\n    const highDemand = metrics.filter(m => m.demand_level === 'high').length;\n    \n    message = `📊 <b>Дашборд</b>\\n\\n` +\n      `🔴 Высокий приоритет: ${highPriority}\\n` +\n      `📦 Критичные остатки: ${criticalStock}\\n` +\n      `📈 Высокий спрос: ${highDemand}\\n` +\n      `📊 Всего метрик: ${metrics.length}`;\n    break;\n    \n  case 'products':\n    const products = apiResponse.products || [];\n    message = `📦 <b>Товары</b> (${apiResponse.total || 0} всего)\\n\\n`;\n    products.slice(0, 5).forEach((p, i) => {\n      message += `${i + 1}. ${p.name || p.product_name}\\n` +\n        `   ❤️ Избранное: ${p.favorites_count?.toLocaleString() || 0}\\n` +\n        `   📦 Дней нет: ${p.days_out_of_stock || '-'}\\n\\n`;\n    });\n    if (apiResponse.total > 5) {\n      message += `... и еще ${apiResponse.total - 5} товаров`;\n    }\n    break;\n    \n  case 'top':\n    const topProducts = Array.isArray(apiResponse) ? apiResponse : [];\n    message = `🏆 <b>Топ товаров</b>\\n\\n`;\n    topProducts.slice(0, 5).forEach((p, i) => {\n      message += `${i + 1}. ${p.product_name || p.name}\\n` +\n        `   ❤️ Избранное: ${p.favorites_count?.toLocaleString() || 0}\\n` +\n        `   🏅 Ранг: ${p.rank || i + 1}\\n\\n`;\n    });\n    break;\n    \n  case 'outofstock':\n    const outOfStock = Array.isArray(apiResponse) ? apiResponse : [];\n    message = `⚠️ <b>Товары без остатка</b> (${outOfStock.length})\\n\\n`;\n    outOfStock.slice(0, 5).forEach((p, i) => {\n      message += `${i + 1}. ${p.product_name || p.name}\\n` +\n        `   📦 Дней нет: ${p.days_out_of_stock || 0}\\n` +\n        `   ⭐ Приоритет: ${p.priority_score || 0}\\n\\n`;\n    });\n    if (outOfStock.length > 5) {\n      message += `... и еще ${outOfStock.length - 5} товаров`;\n    }\n    break;\n    \n  case 'cache_clear':\n  case 'cache_reload':\n    message = apiResponse.message || `✅ Команда выполнена: ${command}`;\n    break;\n    \n  default:\n    message = JSON.stringify(apiResponse, null, 2);\n}\n\nreturn {\n  json: {\n    message: message,\n    chatId: $('Parse Command').item.json.chatId,\n    parseMode: 'HTML'\n  }\n};"
+          },
+          "id": "format-response-1",
+          "name": "Format Response",
+          "type": "n8n-nodes-base.code",
+          "typeVersion": 2,
+          "position": [1250, 200]
+        },
+        {
+          "parameters": {
+            "chatId": "={{ $json.chatId }}",
+            "text": "={{ $json.message }}",
+            "additionalFields": {
+              "parse_mode": "HTML"
+            }
+          },
+          "id": "send-telegram-1",
+          "name": "Send Telegram",
+          "type": "n8n-nodes-base.telegram",
+          "typeVersion": 1,
+          "position": [1450, 200]
+        },
+        {
+          "parameters": {
+            "chatId": "={{ $json.chatId }}",
+            "text": "={{ $json.message }}",
+            "additionalFields": {
+              "parse_mode": "HTML"
+            }
+          },
+          "id": "send-help-1",
+          "name": "Send Help",
+          "type": "n8n-nodes-base.telegram",
+          "typeVersion": 1,
+          "position": [1050, 400]
+        },
+        {
+          "parameters": {
+            "chatId": "={{ $json.chatId }}",
+            "text": "={{ $json.message }}",
+            "additionalFields": {}
+          },
+          "id": "send-error-1",
+          "name": "Send Error",
+          "type": "n8n-nodes-base.telegram",
+          "typeVersion": 1,
+          "position": [1050, 600]
+        }
+      ],
+      "connections": {
+        "Telegram Trigger": {
+          "main": [[{ "node": "Parse Command", "type": "main", "index": 0 }]]
+        },
+        "Parse Command": {
+          "main": [[{ "node": "Is Command?", "type": "main", "index": 0 }]]
+        },
+        "Is Command?": {
+          "main": [
+            [{ "node": "Is Help?", "type": "main", "index": 0 }],
+            []
+          ]
+        },
+        "Is Help?": {
+          "main": [
+            [{ "node": "Call API", "type": "main", "index": 0 }],
+            [{ "node": "Send Help", "type": "main", "index": 0 }]
+          ]
+        },
+        "Is Unknown?": {
+          "main": [
+            [{ "node": "Send Error", "type": "main", "index": 0 }],
+            []
+          ]
+        },
+        "Call API": {
+          "main": [[{ "node": "Format Response", "type": "main", "index": 0 }]]
+        },
+        "Format Response": {
+          "main": [[{ "node": "Send Telegram", "type": "main", "index": 0 }]]
+        }
+      }
+    }
+  ]
+}
+

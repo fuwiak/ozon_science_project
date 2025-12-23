@@ -1,0 +1,68 @@
+{
+  "name": "Telegram API - Ultra Simple",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": ["message", "callback_query"],
+        "additionalFields": {}
+      },
+      "id": "telegram-trigger",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.2,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// JEDEN węzeł: rozpoznaje komendę, wywołuje API, formatuje odpowiedź\nconst text = ($input.item.json.message?.text || '').trim();\nconst chatId = $input.item.json.message?.chat?.id;\nconst baseUrl = 'https://ozonscienceproject-production.up.railway.app';\n\n// Mapowanie komend\nconst commands = {\n  '/stats': { url: '/api/cache/stats', type: 'stats' },\n  '/cache': { url: '/api/cache/stats', type: 'stats' },\n  '/dashboard': { url: '/api/analytics/pricing-metrics?min_days_out_of_stock=15', type: 'dashboard' },\n  '/metrics': { url: '/api/analytics/pricing-metrics?min_days_out_of_stock=15', type: 'dashboard' },\n  '/products': { url: '/api/products?page=1&page_size=5', type: 'products' },\n  '/top': { url: '/api/analytics/demand/top?limit=10', type: 'top' },\n  '/outofstock': { url: '/api/analytics/stock/out-of-stock?min_days=30', type: 'outofstock' },\n  '/cache_clear': { url: '/api/cache/clear', type: 'cache_action', method: 'POST' },\n  '/cache_reload': { url: '/api/cache/reload', type: 'cache_action', method: 'POST' },\n  '/help': { url: null, type: 'help' }\n};\n\n// Sprawdź komendę\nif (!text.startsWith('/')) {\n  return [{ json: { chatId, message: '❌ Отправьте команду, начинающуюся с /' } }];\n}\n\nconst command = text.split(' ')[0].toLowerCase();\nconst cmdData = commands[command];\n\nif (!cmdData) {\n  return [{ json: { chatId, message: '❌ Неизвестная команда. Используйте /help' } }];\n}\n\n// Help\nif (cmdData.type === 'help') {\n  return [{ json: { \n    chatId, \n    message: `🤖 <b>Dynamic Pricing 1299$</b>\\n\\n` +\n      `📊 /dashboard - Метрики\\n` +\n      `📦 /products - Товары\\n` +\n      `🏆 /top - Топ товаров\\n` +\n      `⚠️ /outofstock - Без остатка\\n` +\n      `📈 /metrics - Метрики\\n` +\n      `🗄️ /cache - Кэш\\n` +\n      `🗑️ /cache_clear - Очистить\\n` +\n      `🔄 /cache_reload - Перезагрузить\\n` +\n      `❓ /help - Помощь`\n  } }];\n}\n\n// Wywołaj API - użyj $http jeśli dostępny, w przeciwnym razie fetch\nlet apiResponse;\ntry {\n  const method = cmdData.method || 'GET';\n  const url = baseUrl + cmdData.url;\n  \n  // Spróbuj użyć $http (n8n built-in)\n  if (typeof $http !== 'undefined') {\n    apiResponse = await $http.request({\n      method: method,\n      url: url,\n      headers: { 'Content-Type': 'application/json' }\n    });\n  } else if (typeof fetch !== 'undefined') {\n    // Fallback do fetch\n    const response = await fetch(url, { method, headers: { 'Content-Type': 'application/json' } });\n    apiResponse = await response.json();\n  } else {\n    // Jeśli nic nie działa, zwróć błąd\n    throw new Error('Brak dostępu do HTTP w Code node. Użyj HTTP Request node.');\n  }\n} catch (error) {\n  return [{ json: { chatId, message: `❌ Ошибка: ${error.message}` } }];\n}\n\n// Formatuj odpowiedź\nlet message = '';\n\nswitch(cmdData.type) {\n  case 'stats':\n    message = `📊 <b>Кэш</b>\\n` +\n      `Товаров: ${apiResponse.total_products?.toLocaleString() || 0}\\n` +\n      `Файлов: ${apiResponse.files_loaded || 0}\\n` +\n      `Размер: ${apiResponse.cache_size_mb?.toFixed(2) || 0} МБ`;\n    break;\n    \n  case 'dashboard':\n    const metrics = apiResponse.metrics || [];\n    const highPriority = metrics.filter(m => m.priority_score >= 70).length;\n    const criticalStock = metrics.filter(m => m.days_out_of_stock > 30).length;\n    const highDemand = metrics.filter(m => m.demand_level === 'high').length;\n    message = `📊 <b>Дашборд</b>\\n` +\n      `🔴 Приоритет: ${highPriority}\\n` +\n      `📦 Критичные: ${criticalStock}\\n` +\n      `📈 Спрос: ${highDemand}\\n` +\n      `Всего: ${metrics.length}`;\n    break;\n    \n  case 'products':\n    const products = apiResponse.products || [];\n    message = `📦 <b>Товары</b> (${apiResponse.total || 0})\\n\\n`;\n    products.slice(0, 5).forEach((p, i) => {\n      message += `${i + 1}. ${p.name || p.product_name}\\n` +\n        `   ❤️ ${p.favorites_count?.toLocaleString() || 0}\\n`;\n    });\n    break;\n    \n  case 'top':\n    const topProducts = Array.isArray(apiResponse) ? apiResponse : [];\n    message = `🏆 <b>Топ</b>\\n\\n`;\n    topProducts.slice(0, 5).forEach((p, i) => {\n      message += `${i + 1}. ${p.product_name || p.name}\\n` +\n        `   ❤️ ${p.favorites_count?.toLocaleString() || 0}\\n`;\n    });\n    break;\n    \n  case 'outofstock':\n    const outOfStock = Array.isArray(apiResponse) ? apiResponse : [];\n    message = `⚠️ <b>Без остатка</b> (${outOfStock.length})\\n\\n`;\n    outOfStock.slice(0, 5).forEach((p, i) => {\n      message += `${i + 1}. ${p.product_name || p.name}\\n` +\n        `   📦 ${p.days_out_of_stock || 0} дней\\n`;\n    });\n    break;\n    \n  case 'cache_action':\n    message = apiResponse.message || `✅ Выполнено: ${command}`;\n    break;\n    \n  default:\n    message = JSON.stringify(apiResponse, null, 2).substring(0, 1000);\n}\n\nreturn [{ json: { chatId, message } }];"
+      },
+      "id": "handle-all",
+      "name": "Handle All",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chatId }}",
+        "text": "={{ $json.message }}",
+        "additionalFields": {
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "send-telegram",
+      "name": "Send Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [650, 300]
+    }
+  ],
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Handle All",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handle All": {
+      "main": [
+        [
+          {
+            "node": "Send Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
+
