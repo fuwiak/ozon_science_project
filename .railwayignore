@@ -1,0 +1,10 @@
+# Ignoruj te pliki przy wdrażaniu na Railway
+web-ui/
+tests/
+*.md
+!README.md
+.git/
+.venv/
+venv/
+.env.local
+*.log

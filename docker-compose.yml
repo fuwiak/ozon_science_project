@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  api:
+    build: .
+    ports:
+      - "${PORT:-8000}:${PORT:-8000}"
+    environment:
+      - DATA_DIR=/app/data
+      - PORT=${PORT:-8000}
+    volumes:
+      # Монтируем данные (если нужно)
+      - ./data:/app/data:ro
+      # Монтируем кэш для персистентности
+      - ./cache:/app/cache
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:${PORT:-8000}/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+

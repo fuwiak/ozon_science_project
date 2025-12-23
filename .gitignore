@@ -1,0 +1,49 @@
+# Виртуальное окружение
+.venv/
+venv/
+env/
+ENV/
+
+# Python кэш
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Тестовые файлы
+.pytest_cache/
+.coverage
+htmlcov/
+*.cover
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Переменные окружения
+.env
+.env.local
+
+# Данные (если нужно исключить)
+# data/
+
+# Логи
+*.log
+
+# Временные файлы
+*.tmp
+.DS_Store
+
+# SQLite кэш
+cache/
+*.db
+*.sqlite
+*.sqlite3
+
+# Telegram конфигурация
+telegram_config.json
+

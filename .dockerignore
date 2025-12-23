@@ -1,0 +1,71 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+*.cover
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+*.md
+!README.md
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+.DS_Store
+
+# Next.js (frontend)
+web-ui/
+node_modules/
+
+# Cache (будет создан в контейнере)
+cache/*.db
+cache/*.sqlite
+cache/*.sqlite3
+
+# Telegram config
+telegram_config.json
+
+# Tests
+tests/
+pytest.ini
+
+# Scripts
+*.sh
+
+# Railway
+.railway/
+

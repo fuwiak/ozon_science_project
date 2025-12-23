@@ -1,0 +1,80 @@
+@import "tailwindcss";
+
+:root {
+  --ozon-blue: #005BFF;
+  --ozon-blue-light: #0066FF;
+  --ozon-blue-dark: #0047CC;
+  --ozon-cyan: #00D9FF;
+  --ozon-gradient: linear-gradient(135deg, #005BFF 0%, #00D9FF 100%);
+  --background: #F5F7FA;
+  --foreground: #1A1A1A;
+  --card-bg: #FFFFFF;
+  --border-color: #E5E9F0;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+}
+
+/* Стили для карточек */
+.card {
+  background: var(--card-bg);
+  border-radius: 16px;
+  box-shadow: 0 2px 8px rgba(0, 91, 255, 0.08);
+  transition: all 0.3s ease;
+}
+
+.card:hover {
+  box-shadow: 0 8px 24px rgba(0, 91, 255, 0.12);
+  transform: translateY(-2px);
+}
+
+/* Градиентные кнопки */
+.btn-gradient {
+  background: var(--ozon-gradient);
+  color: white;
+  border: none;
+  transition: all 0.3s ease;
+}
+
+.btn-gradient:hover {
+  box-shadow: 0 4px 12px rgba(0, 91, 255, 0.3);
+  transform: translateY(-1px);
+}
+
+/* Анимации */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-in {
+  animation: fadeIn 0.5s ease-out;
+}
+
+/* Скроллбар */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #F5F7FA;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--ozon-blue);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--ozon-blue-dark);
+}
