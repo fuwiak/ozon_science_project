@@ -404,9 +404,14 @@ class AnalyticsService:
         """
         # Используем кэш если доступен
         if self.loader._cache is not None:
-            df = self.loader._cache
+            df = self.loader._cache.copy()
         else:
             df = self.loader.load_all_data()
+        
+        # Убеждаемся, что колонки our_price и competitor_prices существуют
+        if 'our_price' not in df.columns or 'competitor_prices' not in df.columns:
+            print("Генерирую данные о ценах конкурентов...")
+            df = self.loader._generate_competitor_prices(df)
         
         # Фильтры (lazy evaluation)
         if category:
@@ -422,14 +427,20 @@ class AnalyticsService:
             df = df.nlargest(limit * 2, 'favorites_count')
         
         # Группируем по товару
-        grouped = df.groupby('id').agg({
+        # Проверяем наличие колонок перед группировкой
+        agg_dict = {
             'name': 'first',
             'brand': 'first',
             'category_level_1': 'first',
-            'favorites_count': 'sum',
-            'our_price': 'first',
-            'competitor_prices': 'first'
-        }).reset_index()
+            'favorites_count': 'sum'
+        }
+        
+        if 'our_price' in df.columns:
+            agg_dict['our_price'] = 'first'
+        if 'competitor_prices' in df.columns:
+            agg_dict['competitor_prices'] = 'first'
+        
+        grouped = df.groupby('id').agg(agg_dict).reset_index()
         
         # Определяем уровень спроса
         if len(grouped) > 0:
@@ -448,13 +459,29 @@ class AnalyticsService:
         else:
             grouped['demand_level'] = "low"
         
+        # Если нет данных после фильтрации, возвращаем пустой список
+        if len(grouped) == 0:
+            return []
+        
         # Обрабатываем цены конкурентов
         result = []
         for _, row in grouped.iterrows():
             # Получаем цены конкурентов
             competitor_prices_dict = row.get('competitor_prices', {})
             if not isinstance(competitor_prices_dict, dict):
-                competitor_prices_dict = {}
+                # Если competitor_prices не словарь, пытаемся преобразовать или генерируем заново
+                if pd.isna(competitor_prices_dict) or competitor_prices_dict is None:
+                    competitor_prices_dict = {}
+                else:
+                    # Пытаемся преобразовать в словарь, если это строка или другой тип
+                    try:
+                        if isinstance(competitor_prices_dict, str):
+                            import json
+                            competitor_prices_dict = json.loads(competitor_prices_dict)
+                        else:
+                            competitor_prices_dict = {}
+                    except:
+                        competitor_prices_dict = {}
             
             competitor_prices_list = []
             for comp_name, price in competitor_prices_dict.items():
