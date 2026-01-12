@@ -84,17 +84,6 @@
     },
     {
       "parameters": {
-        "ttl": 3600,
-        "key": "competitor-prices-cache"
-      },
-      "id": "cache-competitor-prices",
-      "name": "Cache Competitor Prices",
-      "type": "n8n-nodes-base.cache",
-      "typeVersion": 1,
-      "position": [1050, 300]
-    },
-    {
-      "parameters": {
         "method": "GET",
         "url": "https://ozonscienceproject-production.up.railway.app/api/analytics/competitor-prices",
         "options": {
@@ -122,18 +111,7 @@
       "name": "Get Competitor Prices",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
-      "position": [1250, 300]
-    },
-    {
-      "parameters": {
-        "ttl": 3600,
-        "key": "competitor-prices-cache"
-      },
-      "id": "save-to-cache",
-      "name": "Save to Cache",
-      "type": "n8n-nodes-base.cache",
-      "typeVersion": 1,
-      "position": [1450, 300]
+      "position": [1050, 300]
     },
     {
       "parameters": {
@@ -143,7 +121,7 @@
       "name": "Filter Significant Price Differences",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1650, 300]
+      "position": [1250, 300]
     },
     {
       "parameters": {
@@ -172,7 +150,7 @@
       "name": "Check If Too Expensive",
       "type": "n8n-nodes-base.filter",
       "typeVersion": 2,
-      "position": [1650, 300]
+      "position": [1450, 300]
     },
     {
       "parameters": {
@@ -182,7 +160,7 @@
       "name": "Analyze Price Data",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1850, 300]
+      "position": [1650, 300]
     },
     {
       "parameters": {
@@ -192,7 +170,7 @@
       "name": "Calculate Optimal Prices",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [2050, 300]
+      "position": [1850, 300]
     },
     {
       "parameters": {
@@ -202,7 +180,7 @@
       "name": "Format Report",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [2250, 300]
+      "position": [2050, 300]
     },
     {
       "parameters": {
@@ -216,7 +194,7 @@
       "name": "Send Telegram Alert",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
-      "position": [2450, 300]
+      "position": [2250, 300]
     },
     {
       "parameters": {
@@ -226,7 +204,7 @@
       "name": "Beautiful Output",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [2650, 300]
+      "position": [2450, 300]
     }
   ],
   "connections": {
@@ -267,23 +245,7 @@
       "main": [
         [
           {
-            "node": "Cache Competitor Prices",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Cache Competitor Prices": {
-      "main": [
-        [
-          {
             "node": "Get Competitor Prices",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Filter Significant Price Differences",
             "type": "main",
             "index": 0
           }
@@ -291,17 +253,6 @@
       ]
     },
     "Get Competitor Prices": {
-      "main": [
-        [
-          {
-            "node": "Save to Cache",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Save to Cache": {
       "main": [
         [
           {
