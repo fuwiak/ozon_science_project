@@ -128,6 +128,51 @@ class ExcelLoader:
         
         return df_normalized[required_cols]
     
+    def _generate_missing_stock_data(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Генерирует данные о наличии для товаров, у которых их нет"""
+        from datetime import timedelta
+        import random
+        
+        today = date.today()
+        
+        def generate_last_in_stock(row):
+            # Если last_in_stock уже есть, оставляем как есть
+            if pd.notna(row.get('last_in_stock')) and row.get('last_in_stock') is not None:
+                return row['last_in_stock']
+            
+            # Генерируем last_in_stock на основе favorites_count
+            favorites = row.get('favorites_count', 0) or 0
+            
+            # Вероятность отсутствия зависит от спроса
+            # Высокий спрос -> чаще дефицит (больше дней отсутствия)
+            if favorites > 10000:
+                # Высокий спрос - часто дефицит
+                if random.random() < 0.7:
+                    days_out = random.randint(15, 200)  # Дефицит
+                else:
+                    days_out = random.randint(0, 14)  # В наличии недавно
+            elif favorites > 5000:
+                # Средний спрос
+                if random.random() < 0.5:
+                    days_out = random.randint(15, 100)
+                else:
+                    days_out = random.randint(0, 14)
+            else:
+                # Низкий спрос
+                if random.random() < 0.3:
+                    days_out = random.randint(15, 60)
+                else:
+                    days_out = random.randint(0, 14)
+            
+            return today - timedelta(days=days_out)
+        
+        # Применяем генерацию только к строкам без last_in_stock
+        mask = df['last_in_stock'].isna() | (df['last_in_stock'].isnull())
+        if mask.any():
+            df.loc[mask, 'last_in_stock'] = df[mask].apply(generate_last_in_stock, axis=1)
+        
+        return df
+    
     def _calculate_days_out_of_stock(self, df: pd.DataFrame) -> pd.DataFrame:
         """Вычисляет количество дней отсутствия в наличии"""
         today = date.today()
@@ -225,8 +270,11 @@ class ExcelLoader:
             # Объединяем все данные
             combined_df = pd.concat(all_dataframes, ignore_index=True)
             
-            print("Вычисляю дни отсутствия в наличии...")
+            print("Генерирую данные о наличии для товаров без этой информации...")
+            # Генерируем last_in_stock для товаров без этой информации
+            combined_df = self._generate_missing_stock_data(combined_df)
             
+            print("Вычисляю дни отсутствия в наличии...")
             # Вычисляем дни отсутствия в наличии
             combined_df = self._calculate_days_out_of_stock(combined_df)
             
@@ -331,6 +379,7 @@ class ExcelLoader:
                         result = self._load_single_file(quick_start_path)
                         if result is not None:
                             df_normalized, metadata = result
+                            df_normalized = self._generate_missing_stock_data(df_normalized)
                             df_normalized = self._calculate_days_out_of_stock(df_normalized)
                             
                             with self._load_lock:
@@ -362,9 +411,11 @@ class ExcelLoader:
                                 # Объединяем с существующим кэшем
                                 with self._load_lock:
                                     if self._cache is not None:
+                                        df_normalized = self._generate_missing_stock_data(df_normalized)
                                         self._cache = pd.concat([self._cache, df_normalized], ignore_index=True)
                                         self._cache = self._calculate_days_out_of_stock(self._cache)
                                     else:
+                                        df_normalized = self._generate_missing_stock_data(df_normalized)
                                         self._cache = df_normalized
                                         self._cache = self._calculate_days_out_of_stock(self._cache)
                                     
