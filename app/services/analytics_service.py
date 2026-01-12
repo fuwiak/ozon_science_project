@@ -223,23 +223,30 @@ class AnalyticsService:
         self,
         min_days: int = 15,
         category: Optional[str] = None,
-        brand: Optional[str] = None
+        brand: Optional[str] = None,
+        limit: int = 100
     ) -> List[OutOfStockProduct]:
-        """Получает товары, отсутствующие в наличии, с расчетом приоритетности"""
+        """Получает товары, отсутствующие в наличии, с расчетом приоритетности (lazy evaluation)"""
         # Используем кэш если доступен
         if self.loader._cache is not None:
             df = self.loader._cache
         else:
             df = self.loader.load_all_data()
         
-        # Фильтруем по дням отсутствия
+        # Lazy evaluation: сначала фильтруем по дням отсутствия (быстрая операция)
         df = df[df['days_out_of_stock'] >= min_days]
         
-        # Дополнительные фильтры
+        # Дополнительные фильтры (lazy evaluation)
         if category:
             df = df[df['category_level_1'] == category]
         if brand:
             df = df[df['brand'] == brand]
+        
+        # Lazy evaluation: если данных слишком много, сначала ограничиваем по favorites_count
+        # Это экономит память при группировке
+        if len(df) > limit * 3:
+            # Берем топ товаров по favorites_count для быстрой предварительной фильтрации
+            df = df.nlargest(limit * 3, 'favorites_count')
         
         # Группируем по товару и агрегируем данные
         grouped = df.groupby('id').agg({
@@ -261,10 +268,10 @@ class AnalyticsService:
             (grouped['days_out_of_stock'] / max_days * 30)
         ).clip(0, 100)
         
-        # Сортируем по приоритетности
-        grouped = grouped.sort_values('priority_score', ascending=False)
+        # Сортируем по приоритетности и ограничиваем результат (lazy evaluation)
+        grouped = grouped.sort_values('priority_score', ascending=False).head(limit)
         
-        # Конвертируем в модели
+        # Конвертируем в модели (lazy evaluation - только top N)
         result = []
         for _, row in grouped.iterrows():
             result.append(OutOfStockProduct(

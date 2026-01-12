@@ -73,7 +73,8 @@ async def get_out_of_stock_products(
     category: Optional[str] = Query(None, description="Фильтр по категории"),
     brand: Optional[str] = Query(None, description="Фильтр по бренду"),
     period_start: Optional[date] = Query(None, description="Начало периода"),
-    period_end: Optional[date] = Query(None, description="Конец периода")
+    period_end: Optional[date] = Query(None, description="Конец периода"),
+    limit: int = Query(100, ge=1, le=1000, description="Максимальное количество товаров для возврата")
 ):
     """
     Получает товары, отсутствующие в наличии более указанного количества дней
@@ -85,7 +86,8 @@ async def get_out_of_stock_products(
         products = service.get_out_of_stock_with_priority(
             min_days=min_days,
             category=category,
-            brand=brand
+            brand=brand,
+            limit=limit
         )
         
         # Дополнительная фильтрация по периоду (если нужно)
@@ -116,9 +118,10 @@ async def get_out_of_stock_products(
                         favorites_count=p.favorites_count,
                         priority_score=priority
                     ))
-            return sorted(result, key=lambda x: x.priority_score, reverse=True)
+            sorted_result = sorted(result, key=lambda x: x.priority_score, reverse=True)
+            return sorted_result[:limit]
         
-        return products
+        return products[:limit]
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ошибка при получении товаров без остатков: {str(e)}")
 
