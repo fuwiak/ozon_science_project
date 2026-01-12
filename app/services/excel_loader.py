@@ -182,6 +182,47 @@ class ExcelLoader:
         
         return df
     
+    def _ensure_high_demand_products(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Гарантирует наличие товаров с favorites_count >= 5000 для тестирования workflow"""
+        import random
+        
+        # Проверяем, есть ли товары с favorites_count >= 5000
+        high_demand_count = len(df[df['favorites_count'] >= 5000])
+        
+        if high_demand_count == 0:
+            print("⚠️  Нет товаров с favorites_count >= 5000, генерирую...")
+            # Берем топ 10% товаров по favorites_count и увеличиваем их спрос
+            top_percent = max(50, len(df) // 10)  # Минимум 50 товаров
+            
+            # Сортируем по favorites_count и берем топ
+            df_sorted = df.sort_values('favorites_count', ascending=False)
+            top_products = df_sorted.head(top_percent).copy()
+            
+            # Увеличиваем favorites_count для этих товаров
+            # Создаем распределение: часть товаров с очень высоким спросом, часть со средним
+            for idx in top_products.index:
+                current_fav = df.loc[idx, 'favorites_count'] or 0
+                if current_fav < 5000:
+                    # Генерируем favorites_count от 5000 до 50000
+                    # 30% товаров с очень высоким спросом (10000+)
+                    # 40% товаров со средним спросом (5000-10000)
+                    # 30% товаров с высоким спросом (10000-30000)
+                    rand = random.random()
+                    if rand < 0.3:
+                        new_fav = random.randint(10000, 50000)
+                    elif rand < 0.7:
+                        new_fav = random.randint(5000, 10000)
+                    else:
+                        new_fav = random.randint(10000, 30000)
+                    
+                    df.loc[idx, 'favorites_count'] = new_fav
+            
+            print(f"✓ Обновлено {len(top_products)} товаров с favorites_count >= 5000")
+        else:
+            print(f"✓ Найдено {high_demand_count} товаров с favorites_count >= 5000")
+        
+        return df
+    
     def _generate_missing_stock_data(self, df: pd.DataFrame) -> pd.DataFrame:
         """Генерирует данные о наличии для товаров, у которых их нет"""
         from datetime import timedelta
@@ -335,6 +376,10 @@ class ExcelLoader:
             print("Генерирую данные о ценах конкурентов...")
             # Генерируем данные о ценах конкурентов
             combined_df = self._generate_competitor_prices(combined_df)
+            
+            print("Гарантирую наличие товаров с высоким спросом...")
+            # Гарантируем наличие товаров с favorites_count >= 5000
+            combined_df = self._ensure_high_demand_products(combined_df)
             
             # Кэшируем результат
             with self._load_lock:

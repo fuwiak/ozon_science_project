@@ -74,13 +74,24 @@
     },
     {
       "parameters": {
-        "jsCode": "// Фильтруем товары с высоким спросом\nconst items = $input.all();\nconst products = items.map(item => item.json);\n\n// Если API возвращает массив напрямую\nconst productList = Array.isArray(products[0]) ? products[0] : products;\n\n// Фильтруем товары с favorites_count >= 5000\nconst highDemandProducts = productList.filter(product => {\n  return product.favorites_count >= 5000;\n});\n\n// Сортируем по спросу\nhighDemandProducts.sort((a, b) => b.favorites_count - a.favorites_count);\n\n// Берем топ 50\nconst topProducts = highDemandProducts.slice(0, 50);\n\nreturn topProducts.map(product => ({\n  json: {\n    product_id: product.product_id || product.id,\n    product_name: product.product_name || product.name,\n    favorites_count: product.favorites_count,\n    category: product.category_level_1 || product.category,\n    brand: product.brand\n  }\n}));"
+        "jsCode": "// Фильтруем товары с высоким спросом\nconst items = $input.all();\nconst products = items.map(item => item.json);\n\n// Если API возвращает массив напрямую\nconst productList = Array.isArray(products[0]) ? products[0] : products;\n\n// Фильтруем товары с favorites_count >= 5000\nlet highDemandProducts = productList.filter(product => {\n  return (product.favorites_count || 0) >= 5000;\n});\n\n// Если нет товаров с favorites_count >= 5000, берем топ 50 по спросу\nif (highDemandProducts.length === 0) {\n  console.log('Нет товаров с favorites_count >= 5000, беру топ 50 по спросу');\n  highDemandProducts = productList\n    .filter(p => (p.favorites_count || 0) > 0)\n    .sort((a, b) => (b.favorites_count || 0) - (a.favorites_count || 0))\n    .slice(0, 50);\n}\n\n// Сортируем по спросу\nhighDemandProducts.sort((a, b) => (b.favorites_count || 0) - (a.favorites_count || 0));\n\n// Берем топ 50\nconst topProducts = highDemandProducts.slice(0, 50);\n\nif (topProducts.length === 0) {\n  console.log('⚠️  Нет товаров для обработки');\n  // Возвращаем хотя бы один элемент с сообщением об ошибке\n  return [{\n    json: {\n      error: 'Нет товаров с достаточным спросом',\n      product_id: 'N/A',\n      product_name: 'Нет данных',\n      favorites_count: 0,\n      category: 'N/A',\n      brand: 'N/A'\n    }\n  }];\n}\n\nreturn topProducts.map(product => ({\n  json: {\n    product_id: product.product_id || product.id,\n    product_name: product.product_name || product.name,\n    favorites_count: product.favorites_count || 0,\n    category: product.category_level_1 || product.category,\n    brand: product.brand\n  }\n}));"
       },
       "id": "filter-high-demand",
       "name": "Filter High Demand",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "ttl": 3600,
+        "key": "competitor-prices-cache"
+      },
+      "id": "cache-competitor-prices",
+      "name": "Cache Competitor Prices",
+      "type": "n8n-nodes-base.cache",
+      "typeVersion": 1,
+      "position": [1050, 300]
     },
     {
       "parameters": {
@@ -111,7 +122,18 @@
       "name": "Get Competitor Prices",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
-      "position": [1050, 300]
+      "position": [1250, 300]
+    },
+    {
+      "parameters": {
+        "ttl": 3600,
+        "key": "competitor-prices-cache"
+      },
+      "id": "save-to-cache",
+      "name": "Save to Cache",
+      "type": "n8n-nodes-base.cache",
+      "typeVersion": 1,
+      "position": [1450, 300]
     },
     {
       "parameters": {
@@ -121,7 +143,7 @@
       "name": "Filter Significant Price Differences",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1250, 300]
+      "position": [1650, 300]
     },
     {
       "parameters": {
@@ -150,7 +172,7 @@
       "name": "Check If Too Expensive",
       "type": "n8n-nodes-base.filter",
       "typeVersion": 2,
-      "position": [1450, 300]
+      "position": [1650, 300]
     },
     {
       "parameters": {
@@ -160,7 +182,7 @@
       "name": "Analyze Price Data",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1650, 300]
+      "position": [1850, 300]
     },
     {
       "parameters": {
@@ -170,7 +192,7 @@
       "name": "Calculate Optimal Prices",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1850, 300]
+      "position": [2050, 300]
     },
     {
       "parameters": {
@@ -180,7 +202,7 @@
       "name": "Format Report",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [2050, 300]
+      "position": [2250, 300]
     },
     {
       "parameters": {
@@ -194,7 +216,7 @@
       "name": "Send Telegram Alert",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
-      "position": [2250, 300]
+      "position": [2450, 300]
     },
     {
       "parameters": {
@@ -204,7 +226,7 @@
       "name": "Beautiful Output",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [2450, 300]
+      "position": [2650, 300]
     }
   ],
   "connections": {
@@ -245,7 +267,23 @@
       "main": [
         [
           {
+            "node": "Cache Competitor Prices",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cache Competitor Prices": {
+      "main": [
+        [
+          {
             "node": "Get Competitor Prices",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Filter Significant Price Differences",
             "type": "main",
             "index": 0
           }
@@ -253,6 +291,17 @@
       ]
     },
     "Get Competitor Prices": {
+      "main": [
+        [
+          {
+            "node": "Save to Cache",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save to Cache": {
       "main": [
         [
           {
