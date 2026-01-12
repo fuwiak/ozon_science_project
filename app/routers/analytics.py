@@ -1,6 +1,9 @@
-from fastapi import APIRouter, Query, HTTPException
+from fastapi import APIRouter, Query, HTTPException, Response
+from fastapi.responses import StreamingResponse
 from typing import Optional
 from datetime import date
+import pandas as pd
+import io
 from app.models import (
     DemandMetrics, TrendData, TimeSeriesResponse, 
     OutOfStockProduct, PricingMetricsResponse
@@ -181,4 +184,223 @@ async def get_pricing_metrics(
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ошибка при получении метрик ценообразования: {str(e)}")
+
+
+@router.get("/export/demand/top")
+async def export_top_products_by_demand(
+    format: str = Query("csv", pattern="^(csv|excel)$", description="Формат экспорта: csv или excel"),
+    limit: int = Query(1000, ge=1, le=10000, description="Количество товаров"),
+    category: Optional[str] = Query(None, description="Фильтр по категории"),
+    brand: Optional[str] = Query(None, description="Фильтр по бренду"),
+    period_start: Optional[date] = Query(None, description="Начало периода"),
+    period_end: Optional[date] = Query(None, description="Конец периода")
+):
+    """
+    Экспортирует топ товаров по спросу в CSV или Excel
+    """
+    try:
+        service = get_analytics_service()
+        top_products = service.get_top_products_by_demand(
+            limit=limit,
+            category=category,
+            brand=brand,
+            period_start=period_start,
+            period_end=period_end
+        )
+        
+        # Конвертируем в DataFrame
+        df = pd.DataFrame([p.dict() for p in top_products])
+        
+        if format == "excel":
+            output = io.BytesIO()
+            df.to_excel(output, index=False, engine='openpyxl')
+            output.seek(0)
+            return StreamingResponse(
+                io.BytesIO(output.read()),
+                media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                headers={"Content-Disposition": f"attachment; filename=top_products_{date.today()}.xlsx"}
+            )
+        else:  # csv
+            output = io.StringIO()
+            df.to_csv(output, index=False)
+            output.seek(0)
+            return Response(
+                content=output.getvalue(),
+                media_type="text/csv; charset=utf-8",
+                headers={"Content-Disposition": f"attachment; filename=top_products_{date.today()}.csv"}
+            )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка при экспорте: {str(e)}")
+
+
+@router.get("/export/demand/trends")
+async def export_demand_trends(
+    format: str = Query("csv", pattern="^(csv|excel)$", description="Формат экспорта: csv или excel"),
+    category: Optional[str] = Query(None, description="Фильтр по категории"),
+    brand: Optional[str] = Query(None, description="Фильтр по бренду"),
+    group_by: str = Query("category", pattern="^(category|brand|period)$", description="Группировка")
+):
+    """
+    Экспортирует тренды спроса в CSV или Excel
+    """
+    try:
+        service = get_analytics_service()
+        trends = service.get_demand_trends(
+            category=category,
+            brand=brand,
+            group_by=group_by
+        )
+        
+        df = pd.DataFrame([t.dict() for t in trends])
+        
+        if format == "excel":
+            output = io.BytesIO()
+            df.to_excel(output, index=False, engine='openpyxl')
+            output.seek(0)
+            return StreamingResponse(
+                io.BytesIO(output.read()),
+                media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                headers={"Content-Disposition": f"attachment; filename=demand_trends_{date.today()}.xlsx"}
+            )
+        else:
+            output = io.StringIO()
+            df.to_csv(output, index=False)
+            output.seek(0)
+            return Response(
+                content=output.getvalue(),
+                media_type="text/csv; charset=utf-8",
+                headers={"Content-Disposition": f"attachment; filename=demand_trends_{date.today()}.csv"}
+            )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка при экспорте: {str(e)}")
+
+
+@router.get("/export/timeseries")
+async def export_time_series(
+    format: str = Query("csv", pattern="^(csv|excel)$", description="Формат экспорта: csv или excel"),
+    category: Optional[str] = Query(None, description="Фильтр по категории"),
+    brand: Optional[str] = Query(None, description="Фильтр по бренду"),
+    group_by: Optional[str] = Query(None, pattern="^(category|brand)$", description="Группировка"),
+    period: str = Query("month", pattern="^(day|week|month)$", description="Период агрегации")
+):
+    """
+    Экспортирует временной ряд в CSV или Excel
+    """
+    try:
+        service = get_analytics_service()
+        time_series = service.get_time_series(
+            category=category,
+            brand=brand,
+            group_by=group_by,
+            period=period
+        )
+        
+        df = pd.DataFrame([ts.dict() for ts in time_series])
+        
+        if format == "excel":
+            output = io.BytesIO()
+            df.to_excel(output, index=False, engine='openpyxl')
+            output.seek(0)
+            return StreamingResponse(
+                io.BytesIO(output.read()),
+                media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                headers={"Content-Disposition": f"attachment; filename=timeseries_{date.today()}.xlsx"}
+            )
+        else:
+            output = io.StringIO()
+            df.to_csv(output, index=False)
+            output.seek(0)
+            return Response(
+                content=output.getvalue(),
+                media_type="text/csv; charset=utf-8",
+                headers={"Content-Disposition": f"attachment; filename=timeseries_{date.today()}.csv"}
+            )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка при экспорте: {str(e)}")
+
+
+@router.get("/export/out-of-stock")
+async def export_out_of_stock(
+    format: str = Query("csv", pattern="^(csv|excel)$", description="Формат экспорта: csv или excel"),
+    min_days: int = Query(15, ge=0, description="Минимальное количество дней отсутствия"),
+    category: Optional[str] = Query(None, description="Фильтр по категории"),
+    brand: Optional[str] = Query(None, description="Фильтр по бренду")
+):
+    """
+    Экспортирует товары без остатков в CSV или Excel
+    """
+    try:
+        service = get_analytics_service()
+        products = service.get_out_of_stock_with_priority(
+            min_days=min_days,
+            category=category,
+            brand=brand
+        )
+        
+        df = pd.DataFrame([p.dict() for p in products])
+        
+        if format == "excel":
+            output = io.BytesIO()
+            df.to_excel(output, index=False, engine='openpyxl')
+            output.seek(0)
+            return StreamingResponse(
+                io.BytesIO(output.read()),
+                media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                headers={"Content-Disposition": f"attachment; filename=out_of_stock_{date.today()}.xlsx"}
+            )
+        else:
+            output = io.StringIO()
+            df.to_csv(output, index=False)
+            output.seek(0)
+            return Response(
+                content=output.getvalue(),
+                media_type="text/csv; charset=utf-8",
+                headers={"Content-Disposition": f"attachment; filename=out_of_stock_{date.today()}.csv"}
+            )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка при экспорте: {str(e)}")
+
+
+@router.get("/export/pricing-metrics")
+async def export_pricing_metrics(
+    format: str = Query("csv", pattern="^(csv|excel)$", description="Формат экспорта: csv или excel"),
+    category: Optional[str] = Query(None, description="Фильтр по категории"),
+    brand: Optional[str] = Query(None, description="Фильтр по бренду"),
+    min_days_out_of_stock: int = Query(15, ge=0, description="Минимальное количество дней отсутствия"),
+    limit: int = Query(500, ge=1, le=5000, description="Максимальное количество метрик")
+):
+    """
+    Экспортирует метрики ценообразования в CSV или Excel
+    """
+    try:
+        service = get_analytics_service()
+        metrics = service.get_pricing_metrics(
+            category=category,
+            brand=brand,
+            min_days_out_of_stock=min_days_out_of_stock,
+            limit=limit
+        )
+        
+        df = pd.DataFrame([m.dict() for m in metrics])
+        
+        if format == "excel":
+            output = io.BytesIO()
+            df.to_excel(output, index=False, engine='openpyxl')
+            output.seek(0)
+            return StreamingResponse(
+                io.BytesIO(output.read()),
+                media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                headers={"Content-Disposition": f"attachment; filename=pricing_metrics_{date.today()}.xlsx"}
+            )
+        else:
+            output = io.StringIO()
+            df.to_csv(output, index=False)
+            output.seek(0)
+            return Response(
+                content=output.getvalue(),
+                media_type="text/csv; charset=utf-8",
+                headers={"Content-Disposition": f"attachment; filename=pricing_metrics_{date.today()}.csv"}
+            )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка при экспорте: {str(e)}")
 
