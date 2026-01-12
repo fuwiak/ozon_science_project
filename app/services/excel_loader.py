@@ -128,6 +128,60 @@ class ExcelLoader:
         
         return df_normalized[required_cols]
     
+    def _generate_competitor_prices(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Генерирует данные о ценах конкурентов для товаров"""
+        import random
+        from datetime import date, timedelta
+        
+        # Конкуренты
+        competitors = ['Wildberries', 'Яндекс.Маркет', 'AliExpress', 'Amazon', 'eBay']
+        
+        def generate_competitor_data(row):
+            """Генерирует цены конкурентов для товара"""
+            favorites = row.get('favorites_count', 0) or 0
+            category = row.get('category_level_1', '')
+            
+            # Базовая цена на основе категории и спроса
+            base_price = 1000
+            if category == 'ТВ и аудио':
+                base_price = 50000
+            elif category == 'Малая бытовая техника':
+                base_price = 15000
+            elif category == 'Красота и здоровье':
+                base_price = 2000
+            elif category == 'Книги':
+                base_price = 500
+            elif category == 'Электроника':
+                base_price = 30000
+            
+            # Корректируем цену на основе спроса
+            if favorites > 10000:
+                base_price *= 1.2  # Высокий спрос = выше цена
+            elif favorites > 5000:
+                base_price *= 1.1
+            
+            # Генерируем цены для каждого конкурента
+            competitor_prices = {}
+            for competitor in competitors:
+                # Цена конкурента варьируется от -20% до +30% от базовой
+                variation = random.uniform(-0.2, 0.3)
+                competitor_prices[competitor] = round(base_price * (1 + variation), 2)
+            
+            # Наша цена (обычно в среднем диапазоне)
+            our_price = round(base_price * random.uniform(0.95, 1.15), 2)
+            
+            return {
+                'our_price': our_price,
+                'competitor_prices': competitor_prices
+            }
+        
+        # Генерируем данные о ценах
+        price_data = df.apply(generate_competitor_data, axis=1, result_type='expand')
+        df['our_price'] = price_data['our_price']
+        df['competitor_prices'] = price_data['competitor_prices']
+        
+        return df
+    
     def _generate_missing_stock_data(self, df: pd.DataFrame) -> pd.DataFrame:
         """Генерирует данные о наличии для товаров, у которых их нет"""
         from datetime import timedelta
@@ -277,6 +331,10 @@ class ExcelLoader:
             print("Вычисляю дни отсутствия в наличии...")
             # Вычисляем дни отсутствия в наличии
             combined_df = self._calculate_days_out_of_stock(combined_df)
+            
+            print("Генерирую данные о ценах конкурентов...")
+            # Генерируем данные о ценах конкурентов
+            combined_df = self._generate_competitor_prices(combined_df)
             
             # Кэшируем результат
             with self._load_lock:

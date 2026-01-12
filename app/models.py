@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional, List
+from typing import Optional, List, Dict
 from datetime import date, datetime
 
 
@@ -108,5 +108,36 @@ class PricingMetricsResponse(BaseModel):
     metrics: List[PricingMetric]
     total: int
 
+
+class CompetitorPrice(BaseModel):
+    """Цена конкурента"""
+    competitor_name: str = Field(..., description="Название конкурента")
+    price: float = Field(..., description="Цена у конкурента")
+    url: Optional[str] = Field(None, description="Ссылка на товар у конкурента")
+    last_updated: Optional[date] = Field(None, description="Дата последнего обновления цены")
+
+
+class PriceComparison(BaseModel):
+    """Сравнение цен"""
+    product_id: str
+    product_name: str
+    brand: Optional[str]
+    category_level_1: Optional[str]
+    our_price: Optional[float] = Field(None, description="Наша цена (если доступна)")
+    competitor_prices: List[CompetitorPrice]
+    avg_competitor_price: float = Field(..., description="Средняя цена конкурентов")
+    min_competitor_price: float = Field(..., description="Минимальная цена конкурентов")
+    max_competitor_price: float = Field(..., description="Максимальная цена конкурентов")
+    price_difference_percent: Optional[float] = Field(None, description="Разница в процентах от средней цены конкурентов")
+    recommendation: str = Field(..., description="Рекомендация по ценообразованию")
+    favorites_count: int
+    demand_level: str = Field(..., description="Уровень спроса: high/medium/low")
+
+
+class PriceComparisonResponse(BaseModel):
+    """Ответ со сравнением цен"""
+    comparisons: List[PriceComparison]
+    total: int
+    summary: Dict[str, float] = Field(..., description="Сводная статистика")
 
 

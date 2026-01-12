@@ -6,7 +6,8 @@ import pandas as pd
 import io
 from app.models import (
     DemandMetrics, TrendData, TimeSeriesResponse, 
-    OutOfStockProduct, PricingMetricsResponse
+    OutOfStockProduct, PricingMetricsResponse,
+    PriceComparison, PriceComparisonResponse, CompetitorPrice
 )
 from app.services.analytics_service import get_analytics_service
 
@@ -406,4 +407,49 @@ async def export_pricing_metrics(
             )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ошибка при экспорте: {str(e)}")
+
+
+@router.get("/competitor-prices", response_model=PriceComparisonResponse)
+async def get_competitor_price_analysis(
+    category: Optional[str] = Query(None, description="Фильтр по категории"),
+    brand: Optional[str] = Query(None, description="Фильтр по бренду"),
+    min_favorites: int = Query(1000, ge=0, description="Минимальное количество добавлений в избранное"),
+    limit: int = Query(50, ge=1, le=500, description="Максимальное количество товаров для анализа")
+):
+    """
+    Анализ цен конкурентов
+    
+    Сравнивает наши цены с ценами конкурентов и предоставляет рекомендации по ценообразованию.
+    """
+    try:
+        from typing import Dict
+        service = get_analytics_service()
+        comparisons = service.get_competitor_price_analysis(
+            category=category,
+            brand=brand,
+            min_favorites=min_favorites,
+            limit=limit
+        )
+        
+        # Вычисляем сводную статистику
+        if comparisons:
+            avg_diff = sum(c.price_difference_percent or 0 for c in comparisons) / len(comparisons)
+            cheaper_count = sum(1 for c in comparisons if (c.price_difference_percent or 0) < -5)
+            expensive_count = sum(1 for c in comparisons if (c.price_difference_percent or 0) > 5)
+        else:
+            avg_diff = 0
+            cheaper_count = 0
+            expensive_count = 0
+        
+        return PriceComparisonResponse(
+            comparisons=comparisons,
+            total=len(comparisons),
+            summary={
+                "avg_price_difference_percent": round(avg_diff, 2),
+                "cheaper_than_competitors": cheaper_count,
+                "more_expensive_than_competitors": expensive_count
+            }
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка при анализе цен конкурентов: {str(e)}")
 
