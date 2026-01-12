@@ -125,31 +125,64 @@
     },
     {
       "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict"
-          },
-          "conditions": [
+        "mode": "rules",
+        "rules": {
+          "values": [
             {
-              "id": "condition-1",
-              "leftValue": "={{ $json.price_difference_percent }}",
-              "rightValue": 10,
-              "operator": {
-                "type": "number",
-                "operation": "larger"
-              }
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "condition-1",
+                    "leftValue": "={{ $json.price_difference_percent }}",
+                    "rightValue": 0,
+                    "operator": {
+                      "type": "number",
+                      "operation": "larger"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "above_average"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "condition-2",
+                    "leftValue": "={{ $json.price_difference_percent }}",
+                    "rightValue": 0,
+                    "operator": {
+                      "type": "number",
+                      "operation": "smallerEqual"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "below_average"
             }
           ],
-          "combinator": "and"
+          "options": {}
         },
         "options": {}
       },
       "id": "check-expensive",
-      "name": "Check If Too Expensive",
-      "type": "n8n-nodes-base.filter",
-      "typeVersion": 2,
+      "name": "Price Comparison Switch",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
       "position": [1450, 300]
     },
     {
@@ -267,15 +300,22 @@
       "main": [
         [
           {
-            "node": "Check If Too Expensive",
+            "node": "Price Comparison Switch",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Check If Too Expensive": {
+    "Price Comparison Switch": {
       "main": [
+        [
+          {
+            "node": "Analyze Price Data",
+            "type": "main",
+            "index": 0
+          }
+        ],
         [
           {
             "node": "Analyze Price Data",
