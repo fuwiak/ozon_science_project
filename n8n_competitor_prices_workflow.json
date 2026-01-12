@@ -125,64 +125,21 @@
     },
     {
       "parameters": {
-        "mode": "rules",
-        "rules": {
-          "values": [
+        "conditions": {
+          "number": [
             {
-              "conditions": {
-                "options": {
-                  "caseSensitive": true,
-                  "leftValue": "",
-                  "typeValidation": "strict"
-                },
-                "conditions": [
-                  {
-                    "id": "condition-1",
-                    "leftValue": "={{ $json.price_difference_percent }}",
-                    "rightValue": 0,
-                    "operator": {
-                      "type": "number",
-                      "operation": "larger"
-                    }
-                  }
-                ],
-                "combinator": "and"
-              },
-              "renameOutput": true,
-              "outputKey": "above_average"
-            },
-            {
-              "conditions": {
-                "options": {
-                  "caseSensitive": true,
-                  "leftValue": "",
-                  "typeValidation": "strict"
-                },
-                "conditions": [
-                  {
-                    "id": "condition-2",
-                    "leftValue": "={{ $json.price_difference_percent }}",
-                    "rightValue": 0,
-                    "operator": {
-                      "type": "number",
-                      "operation": "smallerEqual"
-                    }
-                  }
-                ],
-                "combinator": "and"
-              },
-              "renameOutput": true,
-              "outputKey": "below_average"
+              "value1": "={{ $json.price_difference_percent }}",
+              "operation": "larger",
+              "value2": 0
             }
-          ],
-          "options": {}
+          ]
         },
         "options": {}
       },
       "id": "check-expensive",
-      "name": "Price Comparison Switch",
-      "type": "n8n-nodes-base.switch",
-      "typeVersion": 3,
+      "name": "Price Comparison",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
       "position": [1450, 300]
     },
     {
@@ -300,14 +257,14 @@
       "main": [
         [
           {
-            "node": "Price Comparison Switch",
+            "node": "Price Comparison",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Price Comparison Switch": {
+    "Price Comparison": {
       "main": [
         [
           {
